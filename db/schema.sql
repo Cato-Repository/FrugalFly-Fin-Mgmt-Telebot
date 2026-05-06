@@ -11,11 +11,12 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS budgets (
   id              SERIAL PRIMARY KEY,
   user_id         INT REFERENCES users(id) ON DELETE CASCADE,
-  category        TEXT NOT NULL,  -- 'food', 'transport', 'hotel', 'activities', 'total'
+  category        TEXT NOT NULL,
   amount          NUMERIC NOT NULL,
   currency        TEXT DEFAULT 'USD',
   trip_start_date DATE,
   trip_end_date   DATE,
+  ended_at        TIMESTAMPTZ,
   created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -30,7 +31,15 @@ CREATE TABLE IF NOT EXISTS expense_logs (
   thank_you_at TIMESTAMPTZ
 );
 
--- Helpful view: session duration per log in milliseconds
+-- Tracks words users type that don't match any known category (analytics)
+CREATE TABLE IF NOT EXISTS unknown_category_logs (
+  id        SERIAL PRIMARY KEY,
+  user_id   INT REFERENCES users(id) ON DELETE CASCADE,
+  raw_text  TEXT,
+  logged_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Session duration view
 CREATE OR REPLACE VIEW expense_sessions AS
 SELECT
   id,
@@ -43,3 +52,9 @@ SELECT
   EXTRACT(EPOCH FROM (thank_you_at - logged_at)) * 1000 AS session_duration_ms
 FROM expense_logs
 WHERE thank_you_at IS NOT NULL;
+
+
+-- =============================================
+-- MIGRATION: run these if tables already exist
+-- =============================================
+ALTER TABLE budgets ADD COLUMN IF NOT EXISTS ended_at TIMESTAMPTZ;

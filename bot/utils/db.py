@@ -42,7 +42,6 @@ def get_user(telegram_user_id: int) -> dict | None:
 
 def set_budgets(user_id: int, categories: dict[str, float], trip_start: str | None, trip_end: str | None) -> None:
     db = get_client()
-    # Delete existing budgets for the user before reinserting
     db.table("budgets").delete().eq("user_id", user_id).execute()
     rows = [
         {
@@ -59,8 +58,19 @@ def set_budgets(user_id: int, categories: dict[str, float], trip_start: str | No
 
 def get_budgets(user_id: int) -> list[dict]:
     db = get_client()
-    result = db.table("budgets").select("*").eq("user_id", user_id).execute()
+    result = db.table("budgets").select("*").eq("user_id", user_id).is_("ended_at", "null").execute()
     return result.data
+
+
+def update_budget_amount(user_id: int, category: str, new_amount: float) -> None:
+    db = get_client()
+    db.table("budgets").update({"amount": new_amount}).eq("user_id", user_id).eq("category", category).execute()
+
+
+def end_trip(user_id: int) -> None:
+    from datetime import datetime, timezone
+    db = get_client()
+    db.table("budgets").update({"ended_at": datetime.now(timezone.utc).isoformat()}).eq("user_id", user_id).is_("ended_at", "null").execute()
 
 
 def log_expense(user_id: int, amount: float, category: str, note: str) -> dict:
@@ -101,3 +111,14 @@ def get_spent_by_category(user_id: int) -> dict[str, float]:
         cat = row["category"] or "uncategorised"
         totals[cat] = totals.get(cat, 0.0) + float(row["amount"])
     return totals
+
+
+def get_total_spent(user_id: int) -> float:
+    db = get_client()
+    result = db.table("expense_logs").select("amount").eq("user_id", user_id).execute()
+    return sum(float(r["amount"]) for r in result.data)
+
+
+def log_unknown_category(user_id: int, raw_text: str) -> None:
+    db = get_client()
+    db.table("unknown_category_logs").insert({"user_id": user_id, "raw_text": raw_text}).execute()
