@@ -1,6 +1,9 @@
+import json
 import os
-from supabase import create_client, Client
+from datetime import datetime, timezone
+
 from dotenv import load_dotenv
+from supabase import Client, create_client
 
 load_dotenv()
 
@@ -17,9 +20,9 @@ def get_client() -> Client:
 
 
 def upsert_user(telegram_user_id: int, username: str | None) -> dict:
-    db = get_client()
+    client = get_client()
     result = (
-        db.table("users")
+        client.table("users")
         .upsert(
             {"telegram_user_id": telegram_user_id, "username": username},
             on_conflict="telegram_user_id",
@@ -30,9 +33,9 @@ def upsert_user(telegram_user_id: int, username: str | None) -> dict:
 
 
 def get_user(telegram_user_id: int) -> dict | None:
-    db = get_client()
+    client = get_client()
     result = (
-        db.table("users")
+        client.table("users")
         .select("*")
         .eq("telegram_user_id", telegram_user_id)
         .execute()
@@ -40,85 +43,77 @@ def get_user(telegram_user_id: int) -> dict | None:
     return result.data[0] if result.data else None
 
 
-def set_budgets(user_id: int, categories: dict[str, float], trip_start: str | None, trip_end: str | None) -> None:
-    db = get_client()
-    db.table("budgets").delete().eq("user_id", user_id).execute()
-    rows = [
-        {
-            "user_id": user_id,
-            "category": cat,
-            "amount": amt,
-            "trip_start_date": trip_start,
-            "trip_end_date": trip_end,
-        }
-        for cat, amt in categories.items()
-    ]
-    db.table("budgets").insert(rows).execute()
-
-
-def get_budgets(user_id: int) -> list[dict]:
-    db = get_client()
-    result = db.table("budgets").select("*").eq("user_id", user_id).is_("ended_at", "null").execute()
-    return result.data
-
-
-def update_budget_amount(user_id: int, category: str, new_amount: float) -> None:
-    db = get_client()
-    db.table("budgets").update({"amount": new_amount}).eq("user_id", user_id).eq("category", category).execute()
-
-
-def end_trip(user_id: int) -> None:
-    from datetime import datetime, timezone
-    db = get_client()
-    db.table("budgets").update({"ended_at": datetime.now(timezone.utc).isoformat()}).eq("user_id", user_id).is_("ended_at", "null").execute()
-
-
-def log_expense(user_id: int, amount: float, category: str, note: str) -> dict:
-    db = get_client()
-    budgets = get_budgets(user_id)
-    budget_id = None
-    for b in budgets:
-        if b["category"] == category:
-            budget_id = b["id"]
-            break
-    result = (
-        db.table("expense_logs")
-        .insert(
-            {
-                "user_id": user_id,
-                "budget_id": budget_id,
-                "amount": amount,
-                "category": category,
-                "note": note,
-            }
-        )
-        .execute()
-    )
+def save_trip_plan(
+    user_id: int,
+    destination: str,
+    duration_days: int,
+    total_budget: float,
+    planned: dict,
+    optimized: dict,
+    explanation: str,
+    tips: list,
+) -> dict:
+    client = get_client()
+    client.table("trip_plans").delete().eq("user_id", user_id).execute()
+    result = client.table("trip_plans").insert({
+        "user_id": user_id,
+        "destination": destination,
+        "duration_days": duration_days,
+        "total_budget": total_budget,
+        "planned_food": planned.get("food", 0),
+        "planned_transport": planned.get("transport", 0),
+        "planned_hotel": planned.get("hotel", 0),
+        "planned_activities": planned.get("activities", 0),
+        "planned_other": planned.get("other", 0),
+        "optimized_food": optimized.get("food"),
+        "optimized_transport": optimized.get("transport"),
+        "optimized_hotel": optimized.get("hotel"),
+        "optimized_activities": optimized.get("activities"),
+        "optimized_other": optimized.get("other"),
+        "llm_explanation": explanation,
+        "llm_tips": json.dumps(tips),
+    }).execute()
     return result.data[0]
 
 
-def record_thank_you(log_id: int) -> None:
-    from datetime import datetime, timezone
-    db = get_client()
-    db.table("expense_logs").update({"thank_you_at": datetime.now(timezone.utc).isoformat()}).eq("id", log_id).execute()
+def get_trip_plan(user_id: int) -> dict | None:
+    client = get_client()
+    result = (
+        client.table("trip_plans")
+        .select("*")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if not result.data:
+        return None
+    row = result.data[0]
+    if isinstance(row.get("llm_tips"), str):
+        row["llm_tips"] = json.loads(row["llm_tips"])
+    return row
 
 
-def get_spent_by_category(user_id: int) -> dict[str, float]:
-    db = get_client()
-    result = db.table("expense_logs").select("category, amount").eq("user_id", user_id).execute()
-    totals: dict[str, float] = {}
-    for row in result.data:
-        cat = row["category"] or "uncategorised"
-        totals[cat] = totals.get(cat, 0.0) + float(row["amount"])
-    return totals
-
-
-def get_total_spent(user_id: int) -> float:
-    db = get_client()
-    result = db.table("expense_logs").select("amount").eq("user_id", user_id).execute()
-    return sum(float(r["amount"]) for r in result.data)
-
-
-def log_unknown_category(user_id: int, raw_text: str) -> None:
-    db = get_client()
-    db.table("unknown_category_logs").insert({"user_id": user_id, "raw_text": raw_text}).execute()
+def update_trip_plan_optimized(
+    user_id: int,
+    planned: dict,
+    optimized: dict,
+    explanation: str,
+    tips: list,
+) -> None:
+    client = get_client()
+    client.table("trip_plans").update({
+        "planned_food": planned.get("food", 0),
+        "planned_transport": planned.get("transport", 0),
+        "planned_hotel": planned.get("hotel", 0),
+        "planned_activities": planned.get("activities", 0),
+        "planned_other": planned.get("other", 0),
+        "optimized_food": optimized.get("food"),
+        "optimized_transport": optimized.get("transport"),
+        "optimized_hotel": optimized.get("hotel"),
+        "optimized_activities": optimized.get("activities"),
+        "optimized_other": optimized.get("other"),
+        "llm_explanation": explanation,
+        "llm_tips": json.dumps(tips),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("user_id", user_id).execute()

@@ -4,57 +4,38 @@ CREATE TABLE IF NOT EXISTS users (
   id                SERIAL PRIMARY KEY,
   telegram_user_id  BIGINT UNIQUE NOT NULL,
   username          TEXT,
-  home_timezone     TEXT,
   created_at        TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS budgets (
-  id              SERIAL PRIMARY KEY,
-  user_id         INT REFERENCES users(id) ON DELETE CASCADE,
-  category        TEXT NOT NULL,
-  amount          NUMERIC NOT NULL,
-  currency        TEXT DEFAULT 'USD',
-  trip_start_date DATE,
-  trip_end_date   DATE,
-  ended_at        TIMESTAMPTZ,
-  created_at      TIMESTAMPTZ DEFAULT NOW()
+-- Pre-Travel Tracker: stores the user's planned and LLM-optimized budgets
+CREATE TABLE IF NOT EXISTS trip_plans (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id        INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  destination    TEXT NOT NULL,
+  duration_days  INT NOT NULL,
+  total_budget   NUMERIC(10,2) NOT NULL,
+  currency       TEXT DEFAULT 'SGD',
+
+  -- User's planned amounts
+  planned_food        NUMERIC(10,2) DEFAULT 0,
+  planned_transport   NUMERIC(10,2) DEFAULT 0,
+  planned_hotel       NUMERIC(10,2) DEFAULT 0,
+  planned_activities  NUMERIC(10,2) DEFAULT 0,
+  planned_other       NUMERIC(10,2) DEFAULT 0,
+
+  -- LLM optimized amounts
+  optimized_food        NUMERIC(10,2),
+  optimized_transport   NUMERIC(10,2),
+  optimized_hotel       NUMERIC(10,2),
+  optimized_activities  NUMERIC(10,2),
+  optimized_other       NUMERIC(10,2),
+
+  -- LLM output
+  llm_explanation  TEXT,
+  llm_tips         JSONB DEFAULT '[]',
+
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS expense_logs (
-  id           SERIAL PRIMARY KEY,
-  user_id      INT REFERENCES users(id) ON DELETE CASCADE,
-  budget_id    INT REFERENCES budgets(id) ON DELETE SET NULL,
-  amount       NUMERIC NOT NULL,
-  category     TEXT,
-  note         TEXT,
-  logged_at    TIMESTAMPTZ DEFAULT NOW(),
-  thank_you_at TIMESTAMPTZ
-);
-
--- Tracks words users type that don't match any known category (analytics)
-CREATE TABLE IF NOT EXISTS unknown_category_logs (
-  id        SERIAL PRIMARY KEY,
-  user_id   INT REFERENCES users(id) ON DELETE CASCADE,
-  raw_text  TEXT,
-  logged_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Session duration view
-CREATE OR REPLACE VIEW expense_sessions AS
-SELECT
-  id,
-  user_id,
-  amount,
-  category,
-  note,
-  logged_at,
-  thank_you_at,
-  EXTRACT(EPOCH FROM (thank_you_at - logged_at)) * 1000 AS session_duration_ms
-FROM expense_logs
-WHERE thank_you_at IS NOT NULL;
-
-
--- =============================================
--- MIGRATION: run these if tables already exist
--- =============================================
-ALTER TABLE budgets ADD COLUMN IF NOT EXISTS ended_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS trip_plans_user_id_idx ON trip_plans(user_id);

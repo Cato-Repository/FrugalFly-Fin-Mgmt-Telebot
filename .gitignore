@@ -21,6 +21,7 @@ env/
 .vscode/
 .idea/
 *.iml
+.claude/
 
 # OS
 .DS_Store
