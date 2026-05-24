@@ -1,7 +1,11 @@
+import logging
+
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
 
 from bot.utils import db
+
+logger = logging.getLogger(__name__)
 
 # Conversation states
 ASK_DESTINATION, ASK_DURATION, ASK_BUDGET, ASK_FOOD, ASK_TRANSPORT, ASK_HOTEL, ASK_ACTIVITIES, ASK_OTHER = range(8)
@@ -183,6 +187,7 @@ async def _generate_and_save(update: Update, context: ContextTypes.DEFAULT_TYPE)
     try:
         result = optimize_budget(destination, duration, total_budget, planned)
     except Exception:
+        logger.exception("optimize_budget failed for destination=%s", destination)
         await thinking_msg.edit_text(
             "Sorry, I couldn't generate recommendations right now. Please try again with /newtrip."
         )
