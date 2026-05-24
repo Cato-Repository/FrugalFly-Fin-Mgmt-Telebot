@@ -185,7 +185,7 @@ async def _generate_and_save(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
 
     try:
-        result = optimize_budget(destination, duration, total_budget, planned)
+        result = await optimize_budget(destination, duration, total_budget, planned)
     except Exception:
         logger.exception("optimize_budget failed for destination=%s", destination)
         await thinking_msg.edit_text(

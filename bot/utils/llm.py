@@ -7,14 +7,14 @@ import anthropic
 _client = None
 
 
-def _get_client() -> anthropic.Anthropic:
+def _get_client() -> anthropic.AsyncAnthropic:
     global _client
     if _client is None:
-        _client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+        _client = anthropic.AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
     return _client
 
 
-def optimize_budget(destination: str, duration_days: int, total_budget: float, planned: dict) -> dict:
+async def optimize_budget(destination: str, duration_days: int, total_budget: float, planned: dict) -> dict:
     """
     Calls Claude to redistribute the user's planned budget optimally for their destination.
     planned: {"food": 400, "transport": 300, "hotel": 500, "activities": 200, "other": 100}
@@ -49,7 +49,7 @@ Respond with ONLY valid JSON, no markdown:
   "tips": ["<actionable saving tip 1>", "<actionable saving tip 2>", "<actionable saving tip 3>"]
 }}"""
 
-    message = client.messages.create(
+    message = await client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=1024,
         messages=[{"role": "user", "content": prompt}],

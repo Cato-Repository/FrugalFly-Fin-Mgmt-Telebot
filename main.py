@@ -32,7 +32,7 @@ from bot.handlers.start import (
 from bot.handlers.plan import adjust_budget, show_help, show_my_plan
 
 load_dotenv()
-logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
+logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO, force=True)
 
 
 def main() -> None:
