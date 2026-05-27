@@ -14,29 +14,35 @@ def _get_client() -> anthropic.AsyncAnthropic:
     return _client
 
 
-async def optimize_budget(destination: str, duration_days: int, total_budget: float, planned: dict) -> dict:
-    """
-    Calls Claude to redistribute the user's planned budget optimally for their destination.
-    planned: {"food": 400, "transport": 300, "hotel": 500, "activities": 200, "other": 100}
-    Returns: {"food": ..., "transport": ..., "hotel": ..., "activities": ..., "other": ...,
-              "explanation": ..., "tips": [...]}
-    """
+async def optimize_budget(
+    destination: str,
+    duration_days: int,
+    total_budget: float,
+    planned: dict,
+    currency: str = "USD",
+) -> dict:
     client = _get_client()
     planned_total = sum(planned.values())
 
+    _symbols = {"USD": "$", "JPY": "¥", "SGD": "S$"}
+    sym = _symbols.get(currency, "$")
+    decimals = 0 if currency == "JPY" else 2
+    fmt = (lambda v: f"{sym}{int(round(v)):,}") if decimals == 0 else (lambda v: f"{sym}{v:,.2f}")
+    note = " Use whole numbers (no decimals) for all amounts." if decimals == 0 else ""
+
     prompt = f"""You are a travel budget optimizer. A user is planning a trip and wants help allocating their budget realistically before they go.
 
-Trip: {destination} | {duration_days} days | Total budget: ${total_budget:.2f}
+Trip: {destination} | {duration_days} days | Total budget: {fmt(total_budget)} ({currency})
 
 Their planned spending:
-- Food & Drinks: ${planned.get('food', 0):.2f}
-- Transport (flights, taxis, local): ${planned.get('transport', 0):.2f}
-- Hotel/Accommodation: ${planned.get('hotel', 0):.2f}
-- Activities & Entertainment: ${planned.get('activities', 0):.2f}
-- Other expenses: ${planned.get('other', 0):.2f}
-- Total planned: ${planned_total:.2f}
+- Food & Drinks: {fmt(planned.get('food', 0))}
+- Transport (flights, taxis, local): {fmt(planned.get('transport', 0))}
+- Hotel/Accommodation: {fmt(planned.get('hotel', 0))}
+- Activities & Entertainment: {fmt(planned.get('activities', 0))}
+- Other expenses: {fmt(planned.get('other', 0))}
+- Total planned: {fmt(planned_total)}
 
-Based on real-world average costs in {destination} for {duration_days} days, suggest an optimized budget allocation. Redistribute funds from over-budgeted categories to under-budgeted ones. The 5 optimized amounts MUST sum to exactly ${total_budget:.2f}.
+Based on real-world average costs in {destination} for {duration_days} days, suggest an optimized budget allocation. Redistribute funds from over-budgeted categories to under-budgeted ones. The 5 optimized amounts MUST sum to exactly {fmt(total_budget)}.{note}
 
 Respond with ONLY valid JSON, no markdown:
 {{

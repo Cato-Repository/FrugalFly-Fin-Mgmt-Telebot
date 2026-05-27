@@ -48,18 +48,19 @@ def save_trip_plan(
     destination: str,
     duration_days: int,
     total_budget: float,
+    currency: str,
     planned: dict,
     optimized: dict,
     explanation: str,
     tips: list,
 ) -> dict:
     client = get_client()
-    client.table("trip_plans").delete().eq("user_id", user_id).execute()
     result = client.table("trip_plans").insert({
         "user_id": user_id,
         "destination": destination,
         "duration_days": duration_days,
         "total_budget": total_budget,
+        "currency": currency,
         "planned_food": planned.get("food", 0),
         "planned_transport": planned.get("transport", 0),
         "planned_hotel": planned.get("hotel", 0),
@@ -74,6 +75,14 @@ def save_trip_plan(
         "llm_tips": json.dumps(tips),
     }).execute()
     return result.data[0]
+
+
+def update_trip_feedback(trip_id: str, was_helpful: bool, feature_request: str | None) -> None:
+    client = get_client()
+    client.table("trip_plans").update({
+        "was_helpful": was_helpful,
+        "feature_request": feature_request,
+    }).eq("id", trip_id).execute()
 
 
 def get_trip_plan(user_id: int) -> dict | None:

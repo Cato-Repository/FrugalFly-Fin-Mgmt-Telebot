@@ -4,6 +4,7 @@ import os
 from dotenv import load_dotenv
 from telegram.ext import (
     Application,
+    CallbackQueryHandler,
     CommandHandler,
     ConversationHandler,
     MessageHandler,
@@ -13,16 +14,22 @@ from telegram.ext import (
 from bot.handlers.start import (
     ASK_ACTIVITIES,
     ASK_BUDGET,
+    ASK_CURRENCY,
     ASK_DESTINATION,
     ASK_DURATION,
+    ASK_FEEDBACK,
+    ASK_FEATURE_REQUEST,
     ASK_FOOD,
     ASK_HOTEL,
     ASK_OTHER,
     ASK_TRANSPORT,
     received_activities,
     received_budget,
+    received_currency,
     received_destination,
     received_duration,
+    received_feature_request,
+    received_feedback,
     received_food,
     received_hotel,
     received_other,
@@ -32,7 +39,11 @@ from bot.handlers.start import (
 from bot.handlers.plan import adjust_budget, show_help, show_my_plan
 
 load_dotenv()
-logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO, force=True)
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+    force=True,
+)
 
 
 def main() -> None:
@@ -45,14 +56,17 @@ def main() -> None:
             CommandHandler("newtrip", start),
         ],
         states={
-            ASK_DESTINATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, received_destination)],
-            ASK_DURATION:    [MessageHandler(filters.TEXT & ~filters.COMMAND, received_duration)],
-            ASK_BUDGET:      [MessageHandler(filters.TEXT & ~filters.COMMAND, received_budget)],
-            ASK_FOOD:        [MessageHandler(filters.TEXT & ~filters.COMMAND, received_food)],
-            ASK_TRANSPORT:   [MessageHandler(filters.TEXT & ~filters.COMMAND, received_transport)],
-            ASK_HOTEL:       [MessageHandler(filters.TEXT & ~filters.COMMAND, received_hotel)],
-            ASK_ACTIVITIES:  [MessageHandler(filters.TEXT & ~filters.COMMAND, received_activities)],
-            ASK_OTHER:       [MessageHandler(filters.TEXT & ~filters.COMMAND, received_other)],
+            ASK_CURRENCY:        [CallbackQueryHandler(received_currency)],
+            ASK_DESTINATION:     [MessageHandler(filters.TEXT & ~filters.COMMAND, received_destination)],
+            ASK_DURATION:        [MessageHandler(filters.TEXT & ~filters.COMMAND, received_duration)],
+            ASK_BUDGET:          [MessageHandler(filters.TEXT & ~filters.COMMAND, received_budget)],
+            ASK_FOOD:            [MessageHandler(filters.TEXT & ~filters.COMMAND, received_food)],
+            ASK_TRANSPORT:       [MessageHandler(filters.TEXT & ~filters.COMMAND, received_transport)],
+            ASK_HOTEL:           [MessageHandler(filters.TEXT & ~filters.COMMAND, received_hotel)],
+            ASK_ACTIVITIES:      [MessageHandler(filters.TEXT & ~filters.COMMAND, received_activities)],
+            ASK_OTHER:           [MessageHandler(filters.TEXT & ~filters.COMMAND, received_other)],
+            ASK_FEEDBACK:        [CallbackQueryHandler(received_feedback)],
+            ASK_FEATURE_REQUEST: [MessageHandler(filters.TEXT & ~filters.COMMAND, received_feature_request)],
         },
         fallbacks=[
             CommandHandler("start", start),

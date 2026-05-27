@@ -34,6 +34,10 @@ CREATE TABLE IF NOT EXISTS trip_plans (
   llm_explanation  TEXT,
   llm_tips         JSONB DEFAULT '[]',
 
+  -- User feedback
+  was_helpful      BOOLEAN,
+  feature_request  TEXT,
+
   created_at  TIMESTAMPTZ DEFAULT NOW(),
   updated_at  TIMESTAMPTZ DEFAULT NOW()
 );

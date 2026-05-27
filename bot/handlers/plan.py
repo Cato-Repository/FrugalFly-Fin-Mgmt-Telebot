@@ -79,9 +79,10 @@ async def adjust_budget(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
 
     thinking_msg = await update.message.reply_text("🔍 Re-optimising your plan...")
+    currency = plan.get("currency", "USD")
 
     try:
-        result = optimize_budget(plan["destination"], plan["duration_days"], total_budget, planned)
+        result = await optimize_budget(plan["destination"], plan["duration_days"], total_budget, planned, currency)
     except Exception:
         await thinking_msg.edit_text("Sorry, couldn't re-optimise right now. Try again later.")
         return
@@ -96,7 +97,7 @@ async def adjust_budget(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     )
 
     reply = format_plan_comparison(
-        plan["destination"], plan["duration_days"], total_budget, planned, result
+        plan["destination"], plan["duration_days"], total_budget, planned, result, currency
     )
     await thinking_msg.edit_text(reply, parse_mode="Markdown")
 
