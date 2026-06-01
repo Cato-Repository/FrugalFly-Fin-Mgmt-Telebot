@@ -12,8 +12,6 @@ logger = logging.getLogger(__name__)
     ASK_CURRENCY,
     ASK_DESTINATION,
     ASK_DURATION,
-    ASK_BUDGET,
-    ASK_FOOD,
     ASK_TRANSPORT,
     ASK_HOTEL,
     ASK_ACTIVITIES,
@@ -22,8 +20,11 @@ logger = logging.getLogger(__name__)
     ASK_FEEDBACK_Q1_WHY,
     ASK_FEEDBACK_Q2,
     ASK_FEEDBACK_Q2_WHY,
+    ASK_CATEGORIES_CHANGED,
+    ASK_REALISM_SCORE,
+    ASK_MOST_USEFUL,
     ASK_FEATURE_REQUEST,
-) = range(14)
+) = range(15)
 
 CURRENCY_CONFIG = {
     "USD": {"symbol": "$",  "decimals": 2, "flag": "🇺🇸"},
@@ -32,23 +33,24 @@ CURRENCY_CONFIG = {
 }
 
 _PROMPTS = {
-    "food":       "🍔 Food & Drinks (meals, cafes, groceries)",
     "transport":  "🚗 Transport (flights, taxis, trains, buses)",
-    "hotel":      "🏨 Hotel & Accommodation",
+    "hotel":      "🏨 Hotels & Accommodation",
     "activities": "🎡 Activities & Entertainment (tours, tickets, experiences)",
-    "other":      "💸 Other expenses (shopping, tips, emergencies)",
+    "other":      "💸 Other Expenses (shopping, tips, emergencies)",
 }
+
+_CATEGORY_LABELS = ["Food", "Transport", "Hotel", "Activities", "Other"]
 
 _Q2_KEYBOARD = InlineKeyboardMarkup([[
     InlineKeyboardButton("👍 Yes", callback_data="q2_yes"),
     InlineKeyboardButton("👎 No",  callback_data="q2_no"),
 ]])
 
-_FEATURE_REQUEST_TEXT = (
-    "Please also let us know what other features you would like to see that will "
-    "enable you to more effectively budget your trips! 😊\n"
-    "_(Type your suggestions, or 'skip' to finish)_"
-)
+_REALISM_KEYBOARD = InlineKeyboardMarkup([[
+    InlineKeyboardButton(str(i), callback_data=f"score_{i}") for i in range(1, 6)
+]])
+
+_SCORE_EMOJI = {1: "😞", 2: "😕", 3: "😐", 4: "😊", 5: "😄"}
 
 
 def fmt_amount(amount: float, currency: str) -> str:
@@ -58,10 +60,15 @@ def fmt_amount(amount: float, currency: str) -> str:
     return f"{cfg['symbol']}{amount:,.{cfg['decimals']}f}"
 
 
-def _remaining(context: ContextTypes.DEFAULT_TYPE) -> float:
-    total = context.user_data.get("total_budget", 0.0)
-    spent = sum(context.user_data.get("planned", {}).values())
-    return total - spent
+def _category_keyboard(selected: list) -> InlineKeyboardMarkup:
+    def btn(cat: str) -> InlineKeyboardButton:
+        label = f"✅ {cat}" if cat in selected else cat
+        return InlineKeyboardButton(label, callback_data=f"cat_{cat}")
+    return InlineKeyboardMarkup([
+        [btn(c) for c in _CATEGORY_LABELS[:3]],
+        [btn(c) for c in _CATEGORY_LABELS[3:]],
+        [InlineKeyboardButton("Done ✓", callback_data="cat_done")],
+    ])
 
 
 # ---------------------------------------------------------------------------
@@ -109,7 +116,7 @@ async def received_destination(update: Update, context: ContextTypes.DEFAULT_TYP
         return ASK_DESTINATION
     context.user_data["destination"] = destination
     await update.message.reply_text(
-        f"*{destination}* — great choice! 🌏\n\n*How long is your trip?* (e.g. 7)",
+        f"*{destination}* — great choice! 🌏\n\n*How many days is your trip?* (e.g. 7)",
         parse_mode="Markdown",
     )
     return ASK_DURATION
@@ -126,38 +133,13 @@ async def received_duration(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await update.message.reply_text("Please enter a number of days between 1 and 365.")
         return ASK_DURATION
     context.user_data["duration_days"] = days
-    await update.message.reply_text(
-        f"*{days} day{'s' if days != 1 else ''}* — got it! 🗓\n\n*What is your total budget?*",
-        parse_mode="Markdown",
-    )
-    return ASK_BUDGET
-
-
-async def received_budget(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    text = update.message.text.strip()
-    currency = context.user_data.get("currency", "USD")
-    symbol = CURRENCY_CONFIG[currency]["symbol"]
-    try:
-        amount = float(text.replace(",", "").replace(symbol, "").strip())
-        if amount <= 0:
-            raise ValueError
-    except ValueError:
-        await update.message.reply_text("Please enter a valid budget amount (e.g. 1500).")
-        return ASK_BUDGET
-    context.user_data["total_budget"] = amount
     context.user_data["planned"] = {}
     await update.message.reply_text(
-        f"Budget set: *{fmt_amount(amount, currency)}* 💰\n\n"
-        f"Now let's plan category by category.\n\n"
-        f"*How much will you be spending on {_PROMPTS['food']}?*\n"
-        f"_(Budget remaining: {fmt_amount(amount, currency)})_",
+        f"*{days} day{'s' if days != 1 else ''}* — got it! 🗓\n\n"
+        f"*How much will you be spending on {_PROMPTS['transport']}?*",
         parse_mode="Markdown",
     )
-    return ASK_FOOD
-
-
-async def received_food(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    return await _receive_category(update, context, "food", ASK_FOOD, ASK_TRANSPORT)
+    return ASK_TRANSPORT
 
 
 async def received_transport(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -169,23 +151,7 @@ async def received_hotel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def received_activities(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    text = update.message.text.strip()
-    currency = context.user_data.get("currency", "USD")
-    try:
-        amount = float(text.replace(",", ""))
-        if amount < 0:
-            raise ValueError
-    except ValueError:
-        await update.message.reply_text("Please enter a valid amount (e.g. 200 or 0).")
-        return ASK_ACTIVITIES
-    context.user_data["planned"]["activities"] = amount
-    remaining = _remaining(context)
-    await update.message.reply_text(
-        f"*How much will you be spending on {_PROMPTS['other']}?*\n"
-        f"_(Budget remaining: {fmt_amount(remaining, currency)})_",
-        parse_mode="Markdown",
-    )
-    return ASK_OTHER
+    return await _receive_category(update, context, "activities", ASK_ACTIVITIES, ASK_OTHER)
 
 
 async def received_other(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -214,7 +180,7 @@ async def received_feedback_q1(update: Update, context: ContextTypes.DEFAULT_TYP
     if helpful:
         await query.edit_message_text("Glad to hear that! 😊")
         await query.message.reply_text(
-            "Was FrugalFly useful in enabling you to keep within your travel budget?",
+            "After using FrugalFly, did you adjust any category for your budget planning?",
             reply_markup=_Q2_KEYBOARD,
         )
         return ASK_FEEDBACK_Q2
@@ -230,7 +196,7 @@ async def received_feedback_q1_why(update: Update, context: ContextTypes.DEFAULT
     context.user_data.setdefault("feedback", {})["q1_reason"] = update.message.text.strip()
     await update.message.reply_text(
         "Thanks for letting us know! 🙏\n\n"
-        "Was FrugalFly useful in enabling you to keep within your travel budget?",
+        "After using FrugalFly, did you adjust any category for your budget planning?",
         reply_markup=_Q2_KEYBOARD,
     )
     return ASK_FEEDBACK_Q2
@@ -239,13 +205,17 @@ async def received_feedback_q1_why(update: Update, context: ContextTypes.DEFAULT
 async def received_feedback_q2(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
-    helpful = (query.data == "q2_yes")
-    context.user_data.setdefault("feedback", {})["q2_helpful"] = helpful
+    adjusted = (query.data == "q2_yes")
+    context.user_data.setdefault("feedback", {})["q2_adjusted"] = adjusted
 
-    if helpful:
-        await query.edit_message_text("Awesome! 🎉")
-        await query.message.reply_text(_FEATURE_REQUEST_TEXT, parse_mode="Markdown")
-        return ASK_FEATURE_REQUEST
+    if adjusted:
+        await query.edit_message_text("Great! 🎉")
+        await query.message.reply_text(
+            "*Which categories did you change?*\n_(Select all that apply, then tap Done ✓)_",
+            parse_mode="Markdown",
+            reply_markup=_category_keyboard([]),
+        )
+        return ASK_CATEGORIES_CHANGED
     else:
         await query.edit_message_text(
             "We're sorry to hear that 😔\n\n"
@@ -256,7 +226,69 @@ async def received_feedback_q2(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def received_feedback_q2_why(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.setdefault("feedback", {})["q2_reason"] = update.message.text.strip()
-    await update.message.reply_text(_FEATURE_REQUEST_TEXT, parse_mode="Markdown")
+    await update.message.reply_text(
+        "Thanks for letting us know! 🙏\n\n"
+        "*How realistic does your budget feel now?*\n_(1 = not realistic at all, 5 = very realistic)_",
+        parse_mode="Markdown",
+        reply_markup=_REALISM_KEYBOARD,
+    )
+    return ASK_REALISM_SCORE
+
+
+async def received_categories_changed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    feedback = context.user_data.setdefault("feedback", {})
+    selected = list(feedback.get("categories_changed", []))
+
+    if query.data == "cat_done":
+        feedback["categories_changed"] = selected
+        changed_str = ", ".join(selected) if selected else "none"
+        await query.edit_message_text(
+            f"Got it — you changed: *{changed_str}*", parse_mode="Markdown"
+        )
+        await query.message.reply_text(
+            "*How realistic does your budget feel now?*\n_(1 = not realistic at all, 5 = very realistic)_",
+            parse_mode="Markdown",
+            reply_markup=_REALISM_KEYBOARD,
+        )
+        return ASK_REALISM_SCORE
+    else:
+        cat = query.data.replace("cat_", "")
+        if cat in selected:
+            selected.remove(cat)
+        else:
+            selected.append(cat)
+        feedback["categories_changed"] = selected
+        await query.edit_message_reply_markup(reply_markup=_category_keyboard(selected))
+        return ASK_CATEGORIES_CHANGED
+
+
+async def received_realism_score(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    score = int(query.data.replace("score_", ""))
+    context.user_data.setdefault("feedback", {})["realism_score"] = score
+    emoji = _SCORE_EMOJI[score]
+    await query.edit_message_text(
+        f"Budget realism score: *{score}/5* {emoji}", parse_mode="Markdown"
+    )
+    await query.message.reply_text(
+        "*Which feature do you think was most useful?*\n_(Type your answer)_",
+        parse_mode="Markdown",
+    )
+    return ASK_MOST_USEFUL
+
+
+async def received_most_useful(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data.setdefault("feedback", {})["most_useful_feature"] = update.message.text.strip()
+    await update.message.reply_text(
+        "Please also let us know what other features you would like to see that will "
+        "enable you to more effectively budget your trips! 😊\n"
+        "_(Type your suggestions, or 'skip' to finish)_",
+        parse_mode="Markdown",
+    )
     return ASK_FEATURE_REQUEST
 
 
@@ -291,7 +323,6 @@ async def _receive_category(
     next_state: int,
 ) -> int:
     text = update.message.text.strip()
-    currency = context.user_data.get("currency", "USD")
     try:
         amount = float(text.replace(",", ""))
         if amount < 0:
@@ -299,16 +330,14 @@ async def _receive_category(
     except ValueError:
         await update.message.reply_text("Please enter a valid amount (e.g. 300 or 0).")
         return self_state
-    context.user_data["planned"][cat] = amount
-    remaining = _remaining(context)
+    context.user_data.setdefault("planned", {})[cat] = amount
     next_cat = {
-        ASK_TRANSPORT:  "transport",
         ASK_HOTEL:      "hotel",
         ASK_ACTIVITIES: "activities",
+        ASK_OTHER:      "other",
     }[next_state]
     await update.message.reply_text(
-        f"*How much will you be spending on {_PROMPTS[next_cat]}?*\n"
-        f"_(Budget remaining: {fmt_amount(remaining, currency)})_",
+        f"*How much will you be spending on {_PROMPTS[next_cat]}?*",
         parse_mode="Markdown",
     )
     return next_state
@@ -320,25 +349,17 @@ async def _generate_and_save(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     destination  = context.user_data["destination"]
     duration     = context.user_data["duration_days"]
-    total_budget = context.user_data["total_budget"]
     currency     = context.user_data.get("currency", "USD")
     planned      = context.user_data["planned"]
     planned_total = sum(planned.values())
 
-    warning = ""
-    if planned_total > total_budget:
-        warning = (
-            f"\n\n⚠️ Your planned total ({fmt_amount(planned_total, currency)}) exceeds "
-            f"your budget ({fmt_amount(total_budget, currency)}). I'll optimise within budget."
-        )
-
     thinking_msg = await update.message.reply_text(
-        f"🔍 Analysing your plan for *{destination}*...{warning}",
+        f"🔍 Analysing your plan for *{destination}*...",
         parse_mode="Markdown",
     )
 
     try:
-        result = await optimize_budget(destination, duration, total_budget, planned, currency)
+        result = await optimize_budget(destination, duration, planned, currency)
     except Exception:
         logger.exception("optimize_budget failed for destination=%s", destination)
         await thinking_msg.edit_text(
@@ -349,13 +370,13 @@ async def _generate_and_save(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     user = update.effective_user
     db_user = db.get_user(user.id)
-    optimized = {k: result[k] for k in ["food", "transport", "hotel", "activities", "other"]}
+    optimized = {k: result[k] for k in ["transport", "hotel", "activities", "other"]}
 
     trip = db.save_trip_plan(
         user_id=db_user["id"],
         destination=destination,
         duration_days=duration,
-        total_budget=total_budget,
+        total_budget=planned_total,
         currency=currency,
         planned=planned,
         optimized=optimized,
@@ -364,7 +385,7 @@ async def _generate_and_save(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
     context.user_data["trip_id"] = trip["id"]
 
-    reply = format_plan_comparison(destination, duration, total_budget, planned, result, currency)
+    reply = format_plan_comparison(destination, duration, planned_total, planned, result, currency)
     await thinking_msg.edit_text(reply, parse_mode="Markdown")
 
     keyboard = InlineKeyboardMarkup([[

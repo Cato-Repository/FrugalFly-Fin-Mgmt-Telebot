@@ -79,12 +79,16 @@ def save_trip_plan(
 
 def update_trip_feedback(trip_id: str, feedback: dict) -> None:
     client = get_client()
+    cats = feedback.get("categories_changed")
     update_data = {
-        "was_helpful":        feedback.get("q1_helpful"),
-        "feedback_q1_reason": feedback.get("q1_reason"),
-        "feedback_q2":        feedback.get("q2_helpful"),
-        "feedback_q2_reason": feedback.get("q2_reason"),
-        "feature_request":    feedback.get("feature_request"),
+        "was_helpful":          feedback.get("q1_helpful"),
+        "feedback_q1_reason":   feedback.get("q1_reason"),
+        "feedback_q2":          feedback.get("q2_adjusted"),
+        "feedback_q2_reason":   feedback.get("q2_reason"),
+        "categories_changed":   ", ".join(cats) if cats else None,
+        "realism_score":        feedback.get("realism_score"),
+        "most_useful_feature":  feedback.get("most_useful_feature"),
+        "feature_request":      feedback.get("feature_request"),
     }
     update_data = {k: v for k, v in update_data.items() if v is not None}
     if update_data:

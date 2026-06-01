@@ -1,12 +1,12 @@
 CATEGORY_EMOJI = {
-    "food": "🍔",
-    "transport": "🚗",
-    "hotel": "🏨",
+    "food":       "🍔",
+    "transport":  "🚗",
+    "hotel":      "🏨",
     "activities": "🎡",
-    "other": "💸",
+    "other":      "💸",
 }
 
-CATEGORIES = ["food", "transport", "hotel", "activities", "other"]
+CATEGORIES = ["transport", "hotel", "activities", "other"]
 
 _CURRENCY_CONFIG = {
     "USD": {"symbol": "$",  "decimals": 2},
@@ -32,15 +32,17 @@ def format_plan_comparison(
 ) -> str:
     day_label = "day" if duration == 1 else "days"
     lines = [
-        f"*✈️ {destination} — {duration} {day_label} | Budget: {_fmt(total_budget, currency)}*",
+        f"*✈️ {destination} — {duration} {day_label}*",
+        f"*Total Projected: {_fmt(total_budget, currency)}*",
         "",
         "*Your Plan  →  Suggested:*",
     ]
 
     for cat in CATEGORIES:
-        emoji = CATEGORY_EMOJI[cat]
         plan_amt = float(planned.get(cat) or 0)
         opt_amt  = float(optimized.get(cat) or plan_amt)
+        if plan_amt == 0 and opt_amt == 0:
+            continue
         diff = opt_amt - plan_amt
 
         if diff > 0.5:
@@ -51,7 +53,7 @@ def format_plan_comparison(
             arrow = "→"
 
         lines.append(
-            f"{emoji} *{cat.title()}:* {_fmt(plan_amt, currency)}  →  {_fmt(opt_amt, currency)} {arrow}"
+            f"{CATEGORY_EMOJI[cat]} *{cat.title()}:* {_fmt(plan_amt, currency)}  →  {_fmt(opt_amt, currency)} {arrow}"
         )
 
     explanation = optimized.get("explanation", "")
@@ -70,14 +72,12 @@ def format_plan_comparison(
 def format_my_plan(plan: dict) -> str:
     currency = plan.get("currency", "USD")
     planned = {
-        "food":       float(plan.get("planned_food") or 0),
         "transport":  float(plan.get("planned_transport") or 0),
         "hotel":      float(plan.get("planned_hotel") or 0),
         "activities": float(plan.get("planned_activities") or 0),
         "other":      float(plan.get("planned_other") or 0),
     }
     optimized = {
-        "food":        float(plan.get("optimized_food") or 0),
         "transport":   float(plan.get("optimized_transport") or 0),
         "hotel":       float(plan.get("optimized_hotel") or 0),
         "activities":  float(plan.get("optimized_activities") or 0),
@@ -85,10 +85,11 @@ def format_my_plan(plan: dict) -> str:
         "explanation": plan.get("llm_explanation", ""),
         "tips":        plan.get("llm_tips") or [],
     }
+    total = float(plan.get("total_budget") or sum(planned.values()))
     return format_plan_comparison(
         plan["destination"],
         plan["duration_days"],
-        float(plan["total_budget"]),
+        total,
         planned,
         optimized,
         currency,

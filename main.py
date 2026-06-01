@@ -17,7 +17,7 @@ from telegram.ext import (
 
 from bot.handlers.start import (
     ASK_ACTIVITIES,
-    ASK_BUDGET,
+    ASK_CATEGORIES_CHANGED,
     ASK_CURRENCY,
     ASK_DESTINATION,
     ASK_DURATION,
@@ -26,12 +26,13 @@ from bot.handlers.start import (
     ASK_FEEDBACK_Q2,
     ASK_FEEDBACK_Q2_WHY,
     ASK_FEATURE_REQUEST,
-    ASK_FOOD,
     ASK_HOTEL,
+    ASK_MOST_USEFUL,
     ASK_OTHER,
+    ASK_REALISM_SCORE,
     ASK_TRANSPORT,
     received_activities,
-    received_budget,
+    received_categories_changed,
     received_currency,
     received_destination,
     received_duration,
@@ -40,9 +41,10 @@ from bot.handlers.start import (
     received_feedback_q1_why,
     received_feedback_q2,
     received_feedback_q2_why,
-    received_food,
     received_hotel,
+    received_most_useful,
     received_other,
+    received_realism_score,
     received_transport,
     start,
 )
@@ -67,20 +69,21 @@ def _build_application() -> Application:
             CommandHandler("newtrip", start),
         ],
         states={
-            ASK_CURRENCY:        [CallbackQueryHandler(received_currency)],
-            ASK_DESTINATION:     [MessageHandler(filters.TEXT & ~filters.COMMAND, received_destination)],
-            ASK_DURATION:        [MessageHandler(filters.TEXT & ~filters.COMMAND, received_duration)],
-            ASK_BUDGET:          [MessageHandler(filters.TEXT & ~filters.COMMAND, received_budget)],
-            ASK_FOOD:            [MessageHandler(filters.TEXT & ~filters.COMMAND, received_food)],
-            ASK_TRANSPORT:       [MessageHandler(filters.TEXT & ~filters.COMMAND, received_transport)],
-            ASK_HOTEL:           [MessageHandler(filters.TEXT & ~filters.COMMAND, received_hotel)],
-            ASK_ACTIVITIES:      [MessageHandler(filters.TEXT & ~filters.COMMAND, received_activities)],
-            ASK_OTHER:           [MessageHandler(filters.TEXT & ~filters.COMMAND, received_other)],
-            ASK_FEEDBACK_Q1:     [CallbackQueryHandler(received_feedback_q1)],
-            ASK_FEEDBACK_Q1_WHY: [MessageHandler(filters.TEXT & ~filters.COMMAND, received_feedback_q1_why)],
-            ASK_FEEDBACK_Q2:     [CallbackQueryHandler(received_feedback_q2)],
-            ASK_FEEDBACK_Q2_WHY: [MessageHandler(filters.TEXT & ~filters.COMMAND, received_feedback_q2_why)],
-            ASK_FEATURE_REQUEST: [MessageHandler(filters.TEXT & ~filters.COMMAND, received_feature_request)],
+            ASK_CURRENCY:           [CallbackQueryHandler(received_currency)],
+            ASK_DESTINATION:        [MessageHandler(filters.TEXT & ~filters.COMMAND, received_destination)],
+            ASK_DURATION:           [MessageHandler(filters.TEXT & ~filters.COMMAND, received_duration)],
+            ASK_TRANSPORT:          [MessageHandler(filters.TEXT & ~filters.COMMAND, received_transport)],
+            ASK_HOTEL:              [MessageHandler(filters.TEXT & ~filters.COMMAND, received_hotel)],
+            ASK_ACTIVITIES:         [MessageHandler(filters.TEXT & ~filters.COMMAND, received_activities)],
+            ASK_OTHER:              [MessageHandler(filters.TEXT & ~filters.COMMAND, received_other)],
+            ASK_FEEDBACK_Q1:        [CallbackQueryHandler(received_feedback_q1)],
+            ASK_FEEDBACK_Q1_WHY:    [MessageHandler(filters.TEXT & ~filters.COMMAND, received_feedback_q1_why)],
+            ASK_FEEDBACK_Q2:        [CallbackQueryHandler(received_feedback_q2)],
+            ASK_FEEDBACK_Q2_WHY:    [MessageHandler(filters.TEXT & ~filters.COMMAND, received_feedback_q2_why)],
+            ASK_CATEGORIES_CHANGED: [CallbackQueryHandler(received_categories_changed)],
+            ASK_REALISM_SCORE:      [CallbackQueryHandler(received_realism_score)],
+            ASK_MOST_USEFUL:        [MessageHandler(filters.TEXT & ~filters.COMMAND, received_most_useful)],
+            ASK_FEATURE_REQUEST:    [MessageHandler(filters.TEXT & ~filters.COMMAND, received_feature_request)],
         },
         fallbacks=[
             CommandHandler("start", start),
@@ -135,5 +138,4 @@ if __name__ == "__main__":
         import uvicorn
         uvicorn.run(web_app, host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
     else:
-        # Fallback to polling for local development
         ptb_app.run_polling()
