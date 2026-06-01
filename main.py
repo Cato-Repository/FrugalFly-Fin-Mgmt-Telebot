@@ -1,5 +1,6 @@
 import logging
 import os
+import warnings
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -48,6 +49,7 @@ from bot.handlers.start import (
 from bot.handlers.plan import adjust_budget, show_help, show_my_plan
 
 load_dotenv()
+warnings.filterwarnings("ignore", message="If 'per_message=False'", category=UserWarning)
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
@@ -113,8 +115,10 @@ async def lifespan(_: FastAPI):
 web_app = FastAPI(lifespan=lifespan)
 
 
-@web_app.get("/")
-async def health():
+@web_app.api_route("/", methods=["GET", "HEAD"])
+async def health(request: Request):
+    if request.method == "HEAD":
+        return Response(status_code=200)
     return {"status": "ok"}
 
 
