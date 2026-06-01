@@ -111,7 +111,6 @@ async def lifespan(_: FastAPI):
             allowed_updates=Update.ALL_TYPES,
         )
         yield
-        await ptb_app.bot.delete_webhook()
         await ptb_app.stop()
 
 
