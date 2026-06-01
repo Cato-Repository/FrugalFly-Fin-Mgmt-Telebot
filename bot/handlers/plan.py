@@ -82,7 +82,7 @@ async def adjust_budget(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     currency = plan.get("currency", "USD")
 
     try:
-        result = await optimize_budget(plan["destination"], plan["duration_days"], total_budget, planned, currency)
+        result = await optimize_budget(plan["destination"], plan["duration_days"], planned, currency)
     except Exception:
         await thinking_msg.edit_text("Sorry, couldn't re-optimise right now. Try again later.")
         return
