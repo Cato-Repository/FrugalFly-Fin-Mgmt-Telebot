@@ -1,7 +1,10 @@
 import logging
 import os
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
+from fastapi import FastAPI, Request, Response
+from telegram import Update
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -52,7 +55,7 @@ logging.basicConfig(
 )
 
 
-def main() -> None:
+def _build_application() -> Application:
     token = os.environ["TELEGRAM_BOT_TOKEN"]
     app = Application.builder().token(token).build()
 
@@ -87,9 +90,46 @@ def main() -> None:
     app.add_handler(CommandHandler("myplan", show_my_plan))
     app.add_handler(CommandHandler("adjust", adjust_budget))
     app.add_handler(CommandHandler("help", show_help))
+    return app
 
-    app.run_polling()
+
+ptb_app = _build_application()
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    webhook_url = os.environ["WEBHOOK_URL"].rstrip("/")
+    async with ptb_app:
+        await ptb_app.start()
+        await ptb_app.bot.set_webhook(
+            url=f"{webhook_url}/webhook",
+            allowed_updates=Update.ALL_TYPES,
+        )
+        yield
+        await ptb_app.bot.delete_webhook()
+        await ptb_app.stop()
+
+
+web_app = FastAPI(lifespan=lifespan)
+
+
+@web_app.get("/")
+async def health():
+    return {"status": "ok"}
+
+
+@web_app.post("/webhook")
+async def webhook(request: Request):
+    data = await request.json()
+    update = Update.de_json(data, ptb_app.bot)
+    await ptb_app.update_queue.put(update)
+    return Response(status_code=200)
 
 
 if __name__ == "__main__":
-    main()
+    if os.environ.get("WEBHOOK_URL"):
+        import uvicorn
+        uvicorn.run(web_app, host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+    else:
+        # Fallback to polling for local development
+        ptb_app.run_polling()
