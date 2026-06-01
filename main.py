@@ -103,13 +103,8 @@ ptb_app = _build_application()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    webhook_url = os.environ["WEBHOOK_URL"].rstrip("/")
     async with ptb_app:
         await ptb_app.start()
-        await ptb_app.bot.set_webhook(
-            url=f"{webhook_url}/webhook",
-            allowed_updates=Update.ALL_TYPES,
-        )
         yield
         await ptb_app.stop()
 
