@@ -21,14 +21,25 @@ def get_client() -> Client:
 
 def upsert_user(telegram_user_id: int, username: str | None) -> dict:
     client = get_client()
-    result = (
-        client.table("users")
-        .upsert(
-            {"telegram_user_id": telegram_user_id, "username": username},
-            on_conflict="telegram_user_id",
-        )
-        .execute()
-    )
+    now = datetime.now(timezone.utc).isoformat()
+
+    existing = client.table("users").select("*").eq("telegram_user_id", telegram_user_id).execute()
+
+    if existing.data:
+        sessions = (existing.data[0].get("sessions_started") or 0) + 1
+        result = client.table("users").update({
+            "username":         username,
+            "last_active_at":   now,
+            "sessions_started": sessions,
+        }).eq("telegram_user_id", telegram_user_id).execute()
+    else:
+        result = client.table("users").insert({
+            "telegram_user_id": telegram_user_id,
+            "username":         username,
+            "last_active_at":   now,
+            "sessions_started": 1,
+        }).execute()
+
     return result.data[0]
 
 
@@ -53,26 +64,35 @@ def save_trip_plan(
     optimized: dict,
     explanation: str,
     tips: list,
+    flow_started_at: str | None = None,
 ) -> dict:
     client = get_client()
+
+    time_to_complete = None
+    if flow_started_at:
+        started = datetime.fromisoformat(flow_started_at)
+        time_to_complete = int((datetime.now(timezone.utc) - started).total_seconds())
+
     result = client.table("trip_plans").insert({
-        "user_id": user_id,
-        "destination": destination,
-        "duration_days": duration_days,
-        "total_budget": total_budget,
-        "currency": currency,
-        "planned_food": planned.get("food", 0),
-        "planned_transport": planned.get("transport", 0),
-        "planned_hotel": planned.get("hotel", 0),
-        "planned_activities": planned.get("activities", 0),
-        "planned_other": planned.get("other", 0),
-        "optimized_food": optimized.get("food"),
-        "optimized_transport": optimized.get("transport"),
-        "optimized_hotel": optimized.get("hotel"),
+        "user_id":              user_id,
+        "destination":          destination,
+        "duration_days":        duration_days,
+        "total_budget":         total_budget,
+        "currency":             currency,
+        "planned_food":         planned.get("food", 0),
+        "planned_transport":    planned.get("transport", 0),
+        "planned_hotel":        planned.get("hotel", 0),
+        "planned_activities":   planned.get("activities", 0),
+        "planned_other":        planned.get("other", 0),
+        "optimized_food":       optimized.get("food"),
+        "optimized_transport":  optimized.get("transport"),
+        "optimized_hotel":      optimized.get("hotel"),
         "optimized_activities": optimized.get("activities"),
-        "optimized_other": optimized.get("other"),
-        "llm_explanation": explanation,
-        "llm_tips": json.dumps(tips),
+        "optimized_other":      optimized.get("other"),
+        "llm_explanation":      explanation,
+        "llm_tips":             json.dumps(tips),
+        "flow_started_at":          flow_started_at,
+        "time_to_complete_seconds": time_to_complete,
     }).execute()
     return result.data[0]
 
@@ -122,17 +142,17 @@ def update_trip_plan_optimized(
 ) -> None:
     client = get_client()
     client.table("trip_plans").update({
-        "planned_food": planned.get("food", 0),
-        "planned_transport": planned.get("transport", 0),
-        "planned_hotel": planned.get("hotel", 0),
-        "planned_activities": planned.get("activities", 0),
-        "planned_other": planned.get("other", 0),
-        "optimized_food": optimized.get("food"),
-        "optimized_transport": optimized.get("transport"),
-        "optimized_hotel": optimized.get("hotel"),
+        "planned_food":         planned.get("food", 0),
+        "planned_transport":    planned.get("transport", 0),
+        "planned_hotel":        planned.get("hotel", 0),
+        "planned_activities":   planned.get("activities", 0),
+        "planned_other":        planned.get("other", 0),
+        "optimized_food":       optimized.get("food"),
+        "optimized_transport":  optimized.get("transport"),
+        "optimized_hotel":      optimized.get("hotel"),
         "optimized_activities": optimized.get("activities"),
-        "optimized_other": optimized.get("other"),
-        "llm_explanation": explanation,
-        "llm_tips": json.dumps(tips),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "optimized_other":      optimized.get("other"),
+        "llm_explanation":      explanation,
+        "llm_tips":             json.dumps(tips),
+        "updated_at":           datetime.now(timezone.utc).isoformat(),
     }).eq("user_id", user_id).execute()

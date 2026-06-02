@@ -8,6 +8,19 @@ Format: `major.minor.patch`
 
 ---
 
+## [0.6.0] - 2026-06-02
+### Added
+- `users.last_active_at` — updated on every `/start`, shows when a user was last active
+- `users.sessions_started` — incremented on every `/start`, tracks total flow initiations including abandoned ones
+- `trip_plans.flow_started_at` — timestamp recorded when user hits `/start` for a specific trip
+- `trip_plans.time_to_complete_seconds` — computed on save: seconds from `/start` to completing the full flow
+- These 4 fields together enable: completion rate (`trips / sessions_started`), time-to-complete analysis, frequency tracking, and churn/retention detection
+
+### Changed
+- `upsert_user()` now does a select-then-update instead of a plain upsert, to correctly increment `sessions_started` without overwriting it
+
+---
+
 ## [0.5.1] - 2026-06-01
 ### Fixed
 - Removed `delete_webhook()` from lifespan shutdown — was causing a race condition on every Render redeploy where the old process wiped the webhook after the new process had already registered it, leaving the bot unresponsive until manually re-registered

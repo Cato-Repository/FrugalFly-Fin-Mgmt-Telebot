@@ -1,5 +1,6 @@
 import logging
 import re
+from datetime import datetime, timezone
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes, ConversationHandler
@@ -79,6 +80,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
     db.upsert_user(user.id, user.username)
     context.user_data.clear()
+    context.user_data["flow_started_at"] = datetime.now(timezone.utc).isoformat()
 
     keyboard = InlineKeyboardMarkup([[
         InlineKeyboardButton("🇺🇸 USD", callback_data="USD"),
@@ -382,6 +384,7 @@ async def _generate_and_save(update: Update, context: ContextTypes.DEFAULT_TYPE)
         optimized=optimized,
         explanation=result.get("explanation", ""),
         tips=result.get("tips", []),
+        flow_started_at=context.user_data.get("flow_started_at"),
     )
     context.user_data["trip_id"] = trip["id"]
 

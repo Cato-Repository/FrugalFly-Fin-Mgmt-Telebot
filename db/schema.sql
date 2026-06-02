@@ -4,6 +4,8 @@ CREATE TABLE IF NOT EXISTS users (
   id                SERIAL PRIMARY KEY,
   telegram_user_id  BIGINT UNIQUE NOT NULL,
   username          TEXT,
+  last_active_at    TIMESTAMPTZ,
+  sessions_started  INTEGER DEFAULT 0,
   created_at        TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -33,6 +35,10 @@ CREATE TABLE IF NOT EXISTS trip_plans (
   -- LLM output
   llm_explanation  TEXT,
   llm_tips         JSONB DEFAULT '[]',
+
+  -- Flow timing
+  flow_started_at           TIMESTAMPTZ,
+  time_to_complete_seconds  INTEGER,
 
   -- User feedback
   was_helpful          BOOLEAN,
