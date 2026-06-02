@@ -8,6 +8,12 @@ Format: `major.minor.patch`
 
 ---
 
+## [0.6.1] - 2026-06-02
+### Fixed
+- Feedback data was only written to the DB at the very last step (feature request), meaning any user who dropped off mid-feedback had all their partial responses lost. Each feedback step now saves to the DB immediately, so even a drop-off after Q1 preserves `was_helpful`
+
+---
+
 ## [0.6.0] - 2026-06-02
 ### Added
 - `users.last_active_at` — updated on every `/start`, shows when a user was last active

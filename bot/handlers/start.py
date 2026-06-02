@@ -173,11 +173,18 @@ async def received_other(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 # Feedback flow
 # ---------------------------------------------------------------------------
 
+def _save_feedback_progress(context: ContextTypes.DEFAULT_TYPE) -> None:
+    trip_id = context.user_data.get("trip_id")
+    feedback = context.user_data.get("feedback", {})
+    if trip_id and feedback:
+        db.update_trip_feedback(trip_id, feedback)
+
 async def received_feedback_q1(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
     helpful = (query.data == "q1_yes")
     context.user_data.setdefault("feedback", {})["q1_helpful"] = helpful
+    _save_feedback_progress(context)
 
     if helpful:
         await query.edit_message_text("Glad to hear that! 😊")
@@ -196,6 +203,7 @@ async def received_feedback_q1(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def received_feedback_q1_why(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.setdefault("feedback", {})["q1_reason"] = update.message.text.strip()
+    _save_feedback_progress(context)
     await update.message.reply_text(
         "Thanks for letting us know! 🙏\n\n"
         "After using FrugalFly, did you adjust any category for your budget planning?",
@@ -209,6 +217,7 @@ async def received_feedback_q2(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.answer()
     adjusted = (query.data == "q2_yes")
     context.user_data.setdefault("feedback", {})["q2_adjusted"] = adjusted
+    _save_feedback_progress(context)
 
     if adjusted:
         await query.edit_message_text("Great! 🎉")
@@ -228,6 +237,7 @@ async def received_feedback_q2(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def received_feedback_q2_why(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.setdefault("feedback", {})["q2_reason"] = update.message.text.strip()
+    _save_feedback_progress(context)
     await update.message.reply_text(
         "Thanks for letting us know! 🙏\n\n"
         "*How realistic does your budget feel now?*\n_(1 = not realistic at all, 5 = very realistic)_",
@@ -246,6 +256,7 @@ async def received_categories_changed(update: Update, context: ContextTypes.DEFA
 
     if query.data == "cat_done":
         feedback["categories_changed"] = selected
+        _save_feedback_progress(context)
         changed_str = ", ".join(selected) if selected else "none"
         await query.edit_message_text(
             f"Got it — you changed: *{changed_str}*", parse_mode="Markdown"
@@ -272,6 +283,7 @@ async def received_realism_score(update: Update, context: ContextTypes.DEFAULT_T
     await query.answer()
     score = int(query.data.replace("score_", ""))
     context.user_data.setdefault("feedback", {})["realism_score"] = score
+    _save_feedback_progress(context)
     emoji = _SCORE_EMOJI[score]
     await query.edit_message_text(
         f"Budget realism score: *{score}/5* {emoji}", parse_mode="Markdown"
@@ -285,6 +297,7 @@ async def received_realism_score(update: Update, context: ContextTypes.DEFAULT_T
 
 async def received_most_useful(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.setdefault("feedback", {})["most_useful_feature"] = update.message.text.strip()
+    _save_feedback_progress(context)
     await update.message.reply_text(
         "Please also let us know what other features you would like to see that will "
         "enable you to more effectively budget your trips! 😊\n"
